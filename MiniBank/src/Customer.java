@@ -1,4 +1,4 @@
-public class Customer {
+public class Customer implements Cloneable {
 
     private String name;
     private String email;
@@ -6,6 +6,8 @@ public class Customer {
     private final String customerId;
 
     private static long customerCounter = 100;
+
+    private Address address;
 
     private static String generateCustomerId() {
         customerCounter++;
@@ -33,5 +35,47 @@ public class Customer {
 
     public String getCustomerId() {
         return customerId;
+    }
+
+    public Address getAddress() {
+        return address;
+    }
+
+    public void setAddress(Address address) {
+        this.address = address;
+    }
+
+    public static class Address {
+
+        private String line;
+        private String city;
+        private String pincode;
+
+        public Address(String line, String city, String pincode) {
+            this.line = line;
+            this.city = city;
+            this.pincode = pincode;
+        }
+
+        public String getLine() {
+            return line;
+        }
+
+        public String getCity() {
+            return city;
+        }
+
+        public String getPincode() {
+            return pincode;
+        }
+    }
+
+    @Override
+    public Customer clone() {
+        try {
+            return (Customer) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
