@@ -22,6 +22,29 @@ public class MiniBank {
         System.out.println(bank);
         System.out.println("================================");
 
+        Account[] accounts = {
+            new Account("Prince", 5000),
+            new Account("Rahul", 3000),
+            new Account("Amit")
+        };
+
+        accounts[0].deposit(1000);
+        accounts[0].withdraw(500);
+
+        accounts[1].deposit(2000);
+        accounts[1].withdraw(1000);
+
+        accounts[2].deposit(5000);
+        accounts[2].withdraw(1500);
+
+        for (int i = 0; i < accounts.length; i++) {
+            System.out.println(
+                accounts[i].getAccountNumber() + " : " +
+                accounts[i].getOwnerName() + " : ₹" +
+                accounts[i].getBalance()
+            );
+        }
+
         while (true) {
 
             System.out.println("\n1. Open Account");
