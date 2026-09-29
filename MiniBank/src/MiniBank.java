@@ -37,13 +37,50 @@ public class MiniBank {
         accounts[2].deposit(5000);
         accounts[2].withdraw(1500);
 
+        System.out.println("\nAccounts:");
+
         for (int i = 0; i < accounts.length; i++) {
-            System.out.println(
-                accounts[i].getAccountNumber() + " : " +
-                accounts[i].getOwnerName() + " : ₹" +
-                accounts[i].getBalance()
-            );
+            System.out.println(accounts[i]);
         }
+
+        System.out.println("\nEquals Test:");
+
+        Account account1 = accounts[0];
+        Account account2 = accounts[0];
+
+        System.out.println(account1.equals(account2));
+
+        System.out.println("\nInstanceof Test:");
+
+        Object obj = accounts[0];
+
+        if (obj instanceof Account) {
+            System.out.println("Object is an Account");
+        }
+
+        System.out.println("\nCustomer Test:");
+
+        Customer customer = new Customer(
+                "Prince",
+                "prince@gmail.com",
+                "9876543210"
+        );
+
+        Customer.Address address = new Customer.Address(
+                "CHARUSAT",
+                "Anand",
+                "388421"
+        );
+
+        customer.setAddress(address);
+
+        System.out.println(customer.getCustomerId());
+        System.out.println(customer.getName());
+        System.out.println(customer.getAddress().getCity());
+
+        Customer copy = customer.clone();
+
+        System.out.println("Cloned Customer: " + copy.getName());
 
         while (true) {
 
