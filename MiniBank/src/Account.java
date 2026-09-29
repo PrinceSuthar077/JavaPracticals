@@ -1,6 +1,6 @@
 import java.util.Objects;
 
-public class Account {
+public abstract class Account {
 
     private final String accountNumber;
     private String ownerName;
@@ -30,13 +30,17 @@ public class Account {
     }
 
     public boolean withdraw(long amount) {
-        if (balance >= amount) {
+        if (canWithdraw(amount)) {
             balance -= amount;
             return true;
         }
 
         return false;
     }
+
+    public abstract double interestRate();
+
+    public abstract boolean canWithdraw(long amount);
 
     public String getAccountNumber() {
         return accountNumber;
@@ -70,7 +74,6 @@ public class Account {
             return false;
 
         Account account = (Account) o;
-
         return accountNumber.equals(account.accountNumber);
     }
 
