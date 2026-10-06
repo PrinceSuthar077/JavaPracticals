@@ -1,3 +1,6 @@
+package service;
+import util.TransactionType;
+
 public class CommandParser {
 
     public static Command parse(String line) {
