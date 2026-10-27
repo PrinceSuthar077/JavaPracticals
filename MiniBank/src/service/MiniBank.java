@@ -6,6 +6,7 @@ import model.Account;
 import model.CurrentAccount;
 import model.FixedDepositAccount;
 import model.SavingsAccount;
+import util.AnnotationValidator;
 
 import static java.lang.System.out;
 
@@ -43,6 +44,7 @@ public class MiniBank {
         }
 
         WithdrawRule rule1 = new WithdrawRule() {
+            @Override
             public boolean allow(Account account, long amount) {
                 return amount <= account.getBalance();
             }
@@ -56,6 +58,20 @@ public class MiniBank {
 
         out.println("Lambda Withdrawal: "
                 + rule2.allow(selectedAccount, 2000));
+
+        out.println("\n===== Annotation Validation =====");
+
+        Account testAccount = new SavingsAccount("Test User", -500, 100);
+
+        String[] errors = AnnotationValidator.validate(testAccount);
+
+        if (errors.length == 0) {
+            out.println("No validation errors found.");
+        } else {
+            for (String error : errors) {
+                out.println(error);
+            }
+        }
 
         Scanner sc = new Scanner(System.in);
 
