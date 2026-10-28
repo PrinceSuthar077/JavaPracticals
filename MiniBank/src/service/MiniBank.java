@@ -1,6 +1,8 @@
-
 package service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -12,6 +14,9 @@ import model.SavingsAccount;
 import exception.BankException;
 import exception.AccountNotFoundException;
 import util.AnnotationValidator;
+import util.StatePersister;
+import util.TransactionLog;
+import util.ReportGenerator;
 
 import static java.lang.System.out;
 
@@ -28,6 +33,11 @@ enum MenuOption {
 
 public class MiniBank {
 
+    private static final Path DATA_FOLDER = Path.of("data");
+    private static final Path ACCOUNTS_FILE = DATA_FOLDER.resolve("accounts.dat");
+    private static final Path LOGS_FOLDER = Path.of("logs");
+    private static final Path REPORT_FILE = DATA_FOLDER.resolve("bank-report.txt");
+
     public static Account findAccount(ArrayList<Account> accounts, String accountNumber)
             throws AccountNotFoundException {
 
@@ -39,6 +49,30 @@ public class MiniBank {
 
         throw new AccountNotFoundException(
                 "Account not found: " + accountNumber);
+    }
+
+    private static void saveAccounts(ArrayList<Account> accounts) throws IOException {
+        Files.createDirectories(DATA_FOLDER);
+        StatePersister.save(accounts.toArray(new Account[0]), ACCOUNTS_FILE);
+    }
+
+    private static void logTransaction(String type, Account account, long amount)
+            throws IOException {
+        Files.createDirectories(LOGS_FOLDER);
+
+        Path logFile = LOGS_FOLDER.resolve("transactions.log");
+
+        TransactionLog.append(
+                logFile,
+                type + ": " + amount
+                        + " | Account: " + account.getAccountNumber()
+                        + " | Owner: " + account.getOwnerName());
+    }
+
+    private static void generateReport() throws IOException {
+        Files.createDirectories(DATA_FOLDER);
+        ReportGenerator.generate(LOGS_FOLDER, REPORT_FILE);
+        out.println("Report generated at: " + REPORT_FILE);
     }
 
     public static void main(String[] args) {
@@ -137,7 +171,8 @@ public class MiniBank {
             out.println("2. Deposit");
             out.println("3. Withdraw");
             out.println("4. Transfer");
-            out.println("5. Exit");
+            out.println("5. Save, Load and Generate Report");
+            out.println("6. Exit");
             out.print("Enter your choice: ");
 
             int choice;
@@ -154,7 +189,7 @@ public class MiniBank {
                 case 2 -> MenuOption.DEPOSIT;
                 case 3 -> MenuOption.WITHDRAW;
                 case 4 -> MenuOption.TRANSFER;
-                case 5 -> MenuOption.EXIT;
+                case 5, 6 -> MenuOption.EXIT;
                 default -> null;
             };
 
@@ -164,8 +199,8 @@ public class MiniBank {
             }
 
             try {
-                switch (option) {
-                    case OPEN_ACCOUNT -> {
+                switch (choice) {
+                    case 1 -> {
                         out.println("1. Savings Account");
                         out.println("2. Current Account");
                         out.println("3. Fixed Deposit Account");
@@ -185,17 +220,14 @@ public class MiniBank {
                             case 1 -> {
                                 out.print("Enter minimum balance: ");
                                 long minimum = Long.parseLong(sc.nextLine());
-                                account = new SavingsAccount(
-                                        name, balance, minimum);
+                                account = new SavingsAccount(name, balance, minimum);
                             }
                             case 2 -> {
                                 out.print("Enter overdraft limit: ");
                                 long limit = Long.parseLong(sc.nextLine());
-                                account = new CurrentAccount(
-                                        name, balance, limit);
+                                account = new CurrentAccount(name, balance, limit);
                             }
-                            case 3 -> account =
-                                    new FixedDepositAccount(name, balance);
+                            case 3 -> account = new FixedDepositAccount(name, balance);
                             default -> {
                                 out.println("Invalid account type.");
                                 continue;
@@ -207,7 +239,7 @@ public class MiniBank {
                         out.println(account);
                     }
 
-                    case DEPOSIT -> {
+                    case 2 -> {
                         out.print("Enter account number: ");
                         String number = sc.nextLine();
 
@@ -217,13 +249,13 @@ public class MiniBank {
                         long depositAmount = Long.parseLong(sc.nextLine());
 
                         account.deposit(depositAmount);
+                        logTransaction("Deposit", account, depositAmount);
 
                         out.println("Deposit successful.");
-                        out.println("Updated balance: "
-                                + account.getBalance());
+                        out.println("Updated balance: " + account.getBalance());
                     }
 
-                    case WITHDRAW -> {
+                    case 3 -> {
                         out.print("Enter account number: ");
                         String number = sc.nextLine();
 
@@ -233,38 +265,58 @@ public class MiniBank {
                         long withdrawalAmount = Long.parseLong(sc.nextLine());
 
                         account.withdraw(withdrawalAmount);
+                        logTransaction("Withdrawal", account, withdrawalAmount);
 
                         out.println("Withdrawal successful.");
-                        out.println("Updated balance: "
-                                + account.getBalance());
+                        out.println("Updated balance: " + account.getBalance());
                     }
 
-                    case TRANSFER -> {
+                    case 4 -> {
                         out.print("Enter source account number: ");
                         String sourceNumber = sc.nextLine();
 
-                        Account source = findAccount(
-                                accounts, sourceNumber);
+                        Account source = findAccount(accounts, sourceNumber);
 
                         out.print("Enter destination account number: ");
                         String destinationNumber = sc.nextLine();
 
-                        Account destination = findAccount(
-                                accounts, destinationNumber);
+                        Account destination = findAccount(accounts, destinationNumber);
 
                         out.print("Enter transfer amount: ");
                         long transferAmount = Long.parseLong(sc.nextLine());
 
                         source.transfer(destination, transferAmount);
 
+                        logTransaction("Withdrawal", source, transferAmount);
+                        logTransaction("Deposit", destination, transferAmount);
+
                         out.println("Transfer successful.");
-                        out.println("Source balance: "
-                                + source.getBalance());
-                        out.println("Destination balance: "
-                                + destination.getBalance());
+                        out.println("Source balance: " + source.getBalance());
+                        out.println("Destination balance: " + destination.getBalance());
                     }
 
-                    case EXIT -> {
+                    case 5 -> {
+                        Files.createDirectories(DATA_FOLDER);
+                        saveAccounts(accounts);
+
+                        out.println("Accounts saved successfully.");
+
+                        Account[] loadedAccounts =
+                                StatePersister.load(ACCOUNTS_FILE);
+
+                        out.println("\n===== Reloaded Accounts =====");
+
+                        for (Account account : loadedAccounts) {
+                            out.println(account);
+                        }
+
+                        generateReport();
+                        out.println(Files.readString(REPORT_FILE));
+                    }
+
+                    case 6 -> {
+                        saveAccounts(accounts);
+                        out.println("Accounts saved successfully.");
                         out.println("Thank you for using MiniBank!");
                         sc.close();
                         return;
@@ -274,6 +326,10 @@ public class MiniBank {
                 out.println("Banking error: " + e.getMessage());
             } catch (NumberFormatException e) {
                 out.println("Invalid number. Please try again.");
+            } catch (IOException e) {
+                out.println("File operation error: " + e.getMessage());
+            } catch (ClassNotFoundException e) {
+                out.println("Could not load saved accounts: " + e.getMessage());
             }
         }
     }
