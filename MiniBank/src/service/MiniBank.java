@@ -12,6 +12,7 @@ import model.AccountWorker;
 import model.CurrentAccount;
 import model.FixedDepositAccount;
 import model.SavingsAccount;
+import model.Repository;
 import exception.BankException;
 import exception.AccountNotFoundException;
 import util.AnnotationValidator;
@@ -83,6 +84,25 @@ public class MiniBank {
         accounts.add(new SavingsAccount("Prince", 5000, 1000));
         accounts.add(new CurrentAccount("Rahul", 3000, 2000));
         accounts.add(new FixedDepositAccount("Amit", 10000));
+
+        Repository<Account> accountRepository = new Repository<>();
+
+        accountRepository.saveAll(accounts.toArray(new Account[0]));
+
+        out.println("\n===== Repository: Find Account =====");
+
+        Account foundAccount = accountRepository.findById("AC0001");
+        out.println(foundAccount);
+
+        out.println("\n===== Repository: All Accounts =====");
+
+        for (Account account : accountRepository.findAll()) {
+            out.println(account);
+        }
+
+        Integer[] numbers = {10, 20, 30, 40, 50};
+
+        out.println("\nAverage: " + Repository.average(numbers));
 
         AccountStore accountStore = new AccountStore();
         TransactionProcessor transactionProcessor = new TransactionProcessor();
@@ -253,6 +273,7 @@ public class MiniBank {
                         accounts.add(account);
                         accountStore.add(account);
                         transactionProcessor.addAccount(account);
+                        accountRepository.save(account);
 
                         out.println("Account opened successfully.");
                         out.println(account);
