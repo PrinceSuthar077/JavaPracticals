@@ -3,6 +3,9 @@ package model;
 import java.util.Objects;
 import model.annotation.Id;
 import model.annotation.Positive;
+import exception.InsufficientFundsException;
+import exception.InvalidAmountException;
+import exception.BankException;
 
 public abstract class Account implements Transactable, InterestBearing {
 
@@ -34,17 +37,72 @@ public abstract class Account implements Transactable, InterestBearing {
         this(ownerName, 0);
     }
 
-    public void deposit(long amount) {
+    @Override
+    public void deposit(long amount) throws InvalidAmountException {
+        if (amount <= 0) {
+            throw new InvalidAmountException(
+                    "Deposit amount must be greater than zero.");
+        }
+
+        if (Long.MAX_VALUE - balance < amount) {
+            throw new InvalidAmountException("Deposit amount is too large.");
+        }
+
         balance += amount;
     }
 
-    public boolean withdraw(long amount) {
-        if (canWithdraw(amount)) {
-            balance -= amount;
-            return true;
+    @Override
+    public boolean withdraw(long amount)
+            throws InsufficientFundsException, InvalidAmountException {
+
+        if (amount <= 0) {
+            throw new InvalidAmountException(
+                    "Withdrawal amount must be greater than zero.");
         }
 
-        return false;
+        if (!canWithdraw(amount)) {
+            long shortfall = amount > balance ? amount - balance : 0;
+
+            throw new InsufficientFundsException(
+                    "Withdrawal is not allowed or funds are insufficient.",
+                    shortfall);
+        }
+
+        balance -= amount;
+        return true;
+    }
+
+    public void transfer(Account to, long amount) throws BankException {
+        try {
+            if (to == null) {
+                throw new BankException(
+                        "Destination account cannot be null.");
+            }
+
+            if (to == this) {
+                throw new BankException(
+                        "Cannot transfer to the same account.");
+            }
+
+            if (amount <= 0) {
+                throw new InvalidAmountException(
+                        "Transfer amount must be greater than zero.");
+            }
+
+            withdraw(amount);
+
+            try {
+                to.deposit(amount);
+            } catch (BankException e) {
+                deposit(amount);
+                throw e;
+            }
+
+        } catch (BankException e) {
+            throw e;
+        } finally {
+            System.out.println("Transfer operation completed.");
+        }
     }
 
     public abstract double interestRate();

@@ -1,11 +1,14 @@
 package service;
 
+import java.util.ArrayList;
 import java.util.Scanner;
 
 import model.Account;
 import model.CurrentAccount;
 import model.FixedDepositAccount;
 import model.SavingsAccount;
+import exception.BankException;
+import exception.AccountNotFoundException;
 import util.AnnotationValidator;
 
 import static java.lang.System.out;
@@ -23,21 +26,35 @@ enum MenuOption {
 
 public class MiniBank {
 
+    public static Account findAccount(ArrayList<Account> accounts, String accountNumber)
+            throws AccountNotFoundException {
+
+        for (Account account : accounts) {
+            if (account.getAccountNumber().equals(accountNumber)) {
+                return account;
+            }
+        }
+
+        throw new AccountNotFoundException(
+                "Account not found: " + accountNumber);
+    }
+
     public static void main(String[] args) {
 
-        Account[] accounts = {
-            new SavingsAccount("Prince", 5000, 1000),
-            new CurrentAccount("Rahul", 3000, 2000),
-            new FixedDepositAccount("Amit", 10000)
-        };
+        ArrayList<Account> accounts = new ArrayList<>();
 
-        for (int i = 0; i < accounts.length; i++) {
-            out.println(accounts[i]);
-            out.println("Interest Rate: " + accounts[i].interestRate() + "%");
+        accounts.add(new SavingsAccount("Prince", 5000, 1000));
+        accounts.add(new CurrentAccount("Rahul", 3000, 2000));
+        accounts.add(new FixedDepositAccount("Amit", 10000));
+
+        for (int i = 0; i < accounts.size(); i++) {
+            out.println(accounts.get(i));
+            out.println("Interest Rate: "
+                    + accounts.get(i).interestRate() + "%");
             out.println();
         }
 
-        Account selectedAccount = accounts[0];
+        Account selectedAccount = accounts.get(0);
 
         if (selectedAccount instanceof SavingsAccount) {
             out.println("This is a Savings Account");
@@ -82,7 +99,6 @@ public class MiniBank {
         out.println("================================");
 
         while (true) {
-
             out.println("\n1. Open Account");
             out.println("2. Deposit");
             out.println("3. Withdraw");
@@ -90,7 +106,14 @@ public class MiniBank {
             out.println("5. Exit");
             out.print("Enter your choice: ");
 
-            int choice = sc.nextInt();
+            int choice;
+
+            try {
+                choice = Integer.parseInt(sc.nextLine());
+            } catch (NumberFormatException e) {
+                out.println("Please enter a valid menu number.");
+                continue;
+            }
 
             MenuOption option = switch (choice) {
                 case 1 -> MenuOption.OPEN_ACCOUNT;
@@ -102,28 +125,121 @@ public class MiniBank {
             };
 
             if (option == null) {
-                out.println("Invalid choice");
+                out.println("Invalid choice.");
                 continue;
             }
 
-            switch (option) {
-                case OPEN_ACCOUNT ->
-                    out.println("Open Account - to be implemented");
+            try {
+                switch (option) {
+                    case OPEN_ACCOUNT -> {
+                        out.println("1. Savings Account");
+                        out.println("2. Current Account");
+                        out.println("3. Fixed Deposit Account");
+                        out.print("Choose account type: ");
 
-                case DEPOSIT ->
-                    out.println("Deposit - to be implemented");
+                        int type = Integer.parseInt(sc.nextLine());
 
-                case WITHDRAW ->
-                    out.println("Withdraw - to be implemented");
+                        out.print("Enter owner name: ");
+                        String name = sc.nextLine();
 
-                case TRANSFER ->
-                    out.println("Transfer - to be implemented");
+                        out.print("Enter opening balance: ");
+                        long balance = Long.parseLong(sc.nextLine());
 
-                case EXIT -> {
-                    out.println("Thank you for using MiniBank!");
-                    sc.close();
-                    return;
+                        Account account;
+
+                        switch (type) {
+                            case 1 -> {
+                                out.print("Enter minimum balance: ");
+                                long minimum = Long.parseLong(sc.nextLine());
+                                account = new SavingsAccount(
+                                        name, balance, minimum);
+                            }
+                            case 2 -> {
+                                out.print("Enter overdraft limit: ");
+                                long limit = Long.parseLong(sc.nextLine());
+                                account = new CurrentAccount(
+                                        name, balance, limit);
+                            }
+                            case 3 -> account =
+                                    new FixedDepositAccount(name, balance);
+                            default -> {
+                                out.println("Invalid account type.");
+                                continue;
+                            }
+                        }
+
+                        accounts.add(account);
+                        out.println("Account opened successfully.");
+                        out.println(account);
+                    }
+
+                    case DEPOSIT -> {
+                        out.print("Enter account number: ");
+                        String number = sc.nextLine();
+
+                        Account account = findAccount(accounts, number);
+
+                        out.print("Enter deposit amount: ");
+                        long amount = Long.parseLong(sc.nextLine());
+
+                        account.deposit(amount);
+
+                        out.println("Deposit successful.");
+                        out.println("Updated balance: "
+                                + account.getBalance());
+                    }
+
+                    case WITHDRAW -> {
+                        out.print("Enter account number: ");
+                        String number = sc.nextLine();
+
+                        Account account = findAccount(accounts, number);
+
+                        out.print("Enter withdrawal amount: ");
+                        long amount = Long.parseLong(sc.nextLine());
+
+                        account.withdraw(amount);
+
+                        out.println("Withdrawal successful.");
+                        out.println("Updated balance: "
+                                + account.getBalance());
+                    }
+
+                    case TRANSFER -> {
+                        out.print("Enter source account number: ");
+                        String sourceNumber = sc.nextLine();
+
+                        Account source = findAccount(
+                                accounts, sourceNumber);
+
+                        out.print("Enter destination account number: ");
+                        String destinationNumber = sc.nextLine();
+
+                        Account destination = findAccount(
+                                accounts, destinationNumber);
+
+                        out.print("Enter transfer amount: ");
+                        long amount = Long.parseLong(sc.nextLine());
+
+                        source.transfer(destination, amount);
+
+                        out.println("Transfer successful.");
+                        out.println("Source balance: "
+                                + source.getBalance());
+                        out.println("Destination balance: "
+                                + destination.getBalance());
+                    }
+
+                    case EXIT -> {
+                        out.println("Thank you for using MiniBank!");
+                        sc.close();
+                        return;
+                    }
                 }
+            } catch (BankException e) {
+                out.println("Banking error: " + e.getMessage());
+            } catch (NumberFormatException e) {
+                out.println("Invalid number. Please try again.");
             }
         }
     }
