@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Scanner;
 
 import model.Account;
+import model.AccountStore;
 import model.AccountWorker;
 import model.CurrentAccount;
 import model.FixedDepositAccount;
@@ -83,6 +84,20 @@ public class MiniBank {
         accounts.add(new CurrentAccount("Rahul", 3000, 2000));
         accounts.add(new FixedDepositAccount("Amit", 10000));
 
+        AccountStore accountStore = new AccountStore();
+        TransactionProcessor transactionProcessor = new TransactionProcessor();
+
+        for (Account account : accounts) {
+            accountStore.add(account);
+            transactionProcessor.addAccount(account);
+        }
+
+        out.println("\n===== Accounts Sorted by Balance =====");
+
+        for (Account account : accountStore.sortedByBalance()) {
+            out.println(account);
+        }
+
         for (int i = 0; i < accounts.size(); i++) {
             out.println(accounts.get(i));
             out.println("Interest Rate: "
@@ -147,6 +162,7 @@ public class MiniBank {
             try {
                 threads[i].join();
             } catch (InterruptedException e) {
+                transactionProcessor.stop();
                 Thread.currentThread().interrupt();
                 out.println("Main thread interrupted.");
                 return;
@@ -235,6 +251,9 @@ public class MiniBank {
                         }
 
                         accounts.add(account);
+                        accountStore.add(account);
+                        transactionProcessor.addAccount(account);
+
                         out.println("Account opened successfully.");
                         out.println(account);
                     }
@@ -243,13 +262,22 @@ public class MiniBank {
                         out.print("Enter account number: ");
                         String number = sc.nextLine();
 
-                        Account account = findAccount(accounts, number);
+                        Account account = accountStore.get(number);
+
+                        if (account == null) {
+                            throw new AccountNotFoundException(
+                                    "Account not found: " + number);
+                        }
 
                         out.print("Enter deposit amount: ");
                         long depositAmount = Long.parseLong(sc.nextLine());
 
                         account.deposit(depositAmount);
                         logTransaction("Deposit", account, depositAmount);
+
+                        accountStore.addTransaction(
+                                "Deposit: " + depositAmount
+                                        + " | Account: " + account.getAccountNumber());
 
                         out.println("Deposit successful.");
                         out.println("Updated balance: " + account.getBalance());
@@ -259,13 +287,22 @@ public class MiniBank {
                         out.print("Enter account number: ");
                         String number = sc.nextLine();
 
-                        Account account = findAccount(accounts, number);
+                        Account account = accountStore.get(number);
+
+                        if (account == null) {
+                            throw new AccountNotFoundException(
+                                    "Account not found: " + number);
+                        }
 
                         out.print("Enter withdrawal amount: ");
                         long withdrawalAmount = Long.parseLong(sc.nextLine());
 
                         account.withdraw(withdrawalAmount);
                         logTransaction("Withdrawal", account, withdrawalAmount);
+
+                        accountStore.addTransaction(
+                                "Withdrawal: " + withdrawalAmount
+                                        + " | Account: " + account.getAccountNumber());
 
                         out.println("Withdrawal successful.");
                         out.println("Updated balance: " + account.getBalance());
@@ -275,12 +312,22 @@ public class MiniBank {
                         out.print("Enter source account number: ");
                         String sourceNumber = sc.nextLine();
 
-                        Account source = findAccount(accounts, sourceNumber);
+                        Account source = accountStore.get(sourceNumber);
+
+                        if (source == null) {
+                            throw new AccountNotFoundException(
+                                    "Source account not found: " + sourceNumber);
+                        }
 
                         out.print("Enter destination account number: ");
                         String destinationNumber = sc.nextLine();
 
-                        Account destination = findAccount(accounts, destinationNumber);
+                        Account destination = accountStore.get(destinationNumber);
+
+                        if (destination == null) {
+                            throw new AccountNotFoundException(
+                                    "Destination account not found: " + destinationNumber);
+                        }
 
                         out.print("Enter transfer amount: ");
                         long transferAmount = Long.parseLong(sc.nextLine());
@@ -289,6 +336,14 @@ public class MiniBank {
 
                         logTransaction("Withdrawal", source, transferAmount);
                         logTransaction("Deposit", destination, transferAmount);
+
+                        accountStore.addTransaction(
+                                "Transfer withdrawal: " + transferAmount
+                                        + " | Account: " + source.getAccountNumber());
+
+                        accountStore.addTransaction(
+                                "Transfer deposit: " + transferAmount
+                                        + " | Account: " + destination.getAccountNumber());
 
                         out.println("Transfer successful.");
                         out.println("Source balance: " + source.getBalance());
@@ -310,6 +365,18 @@ public class MiniBank {
                             out.println(account);
                         }
 
+                        out.println("\n===== Accounts Sorted by Balance =====");
+
+                        for (Account account : accountStore.sortedByBalance()) {
+                            out.println(account);
+                        }
+
+                        out.println("\n===== Transaction History =====");
+
+                        for (String transaction : accountStore.getTransactionHistory()) {
+                            out.println(transaction);
+                        }
+
                         generateReport();
                         out.println(Files.readString(REPORT_FILE));
                     }
@@ -318,6 +385,7 @@ public class MiniBank {
                         saveAccounts(accounts);
                         out.println("Accounts saved successfully.");
                         out.println("Thank you for using MiniBank!");
+                        transactionProcessor.stop();
                         sc.close();
                         return;
                     }
