@@ -30,6 +30,8 @@ enum MenuOption {
     DEPOSIT,
     WITHDRAW,
     TRANSFER,
+    STATEMENT,
+    REPORT,
     EXIT
 }
 
@@ -40,8 +42,8 @@ public class MiniBank {
     private static final Path LOGS_FOLDER = Path.of("logs");
     private static final Path REPORT_FILE = DATA_FOLDER.resolve("bank-report.txt");
 
-    public static Account findAccount(ArrayList<Account> accounts, String accountNumber)
-            throws AccountNotFoundException {
+    public static Account findAccount(ArrayList<Account> accounts,
+            String accountNumber) throws AccountNotFoundException {
 
         for (Account account : accounts) {
             if (account.getAccountNumber().equals(accountNumber)) {
@@ -53,13 +55,16 @@ public class MiniBank {
                 "Account not found: " + accountNumber);
     }
 
-    private static void saveAccounts(ArrayList<Account> accounts) throws IOException {
+    private static void saveAccounts(ArrayList<Account> accounts)
+            throws IOException {
+
         Files.createDirectories(DATA_FOLDER);
         StatePersister.save(accounts.toArray(new Account[0]), ACCOUNTS_FILE);
     }
 
     private static void logTransaction(String type, Account account, long amount)
             throws IOException {
+
         Files.createDirectories(LOGS_FOLDER);
 
         Path logFile = LOGS_FOLDER.resolve("transactions.log");
@@ -77,22 +82,74 @@ public class MiniBank {
         out.println("Report generated at: " + REPORT_FILE);
     }
 
+    private static void registerAccount(Account account,
+            ArrayList<Account> accounts,
+            Repository<Account> repository,
+            AccountStore accountStore,
+            TransactionProcessor transactionProcessor) {
+
+        if (!accounts.contains(account)) {
+            accounts.add(account);
+        }
+
+        repository.save(account);
+        accountStore.add(account);
+        transactionProcessor.addAccount(account);
+    }
+
     public static void main(String[] args) {
 
         ArrayList<Account> accounts = new ArrayList<>();
-
-        accounts.add(new SavingsAccount("Prince", 5000, 1000));
-        accounts.add(new CurrentAccount("Rahul", 3000, 2000));
-        accounts.add(new FixedDepositAccount("Amit", 10000));
-
         Repository<Account> accountRepository = new Repository<>();
+        AccountStore accountStore = new AccountStore();
+        TransactionProcessor transactionProcessor = new TransactionProcessor();
 
-        accountRepository.saveAll(accounts.toArray(new Account[0]));
+        try {
+            if (Files.exists(ACCOUNTS_FILE)) {
+                Account[] savedAccounts = StatePersister.load(ACCOUNTS_FILE);
+
+                for (Account account : savedAccounts) {
+                    registerAccount(
+                            account,
+                            accounts,
+                            accountRepository,
+                            accountStore,
+                            transactionProcessor);
+                }
+
+                Account.synchronizeAccountCounter(accounts);
+                out.println("Saved accounts loaded successfully.");
+            } else {
+                accounts.add(new SavingsAccount("Prince", 5000, 1000));
+                accounts.add(new CurrentAccount("Rahul", 3000, 2000));
+                accounts.add(new FixedDepositAccount("Amit", 10000));
+
+                for (Account account : accounts) {
+                    registerAccount(
+                            account,
+                            accounts,
+                            accountRepository,
+                            accountStore,
+                            transactionProcessor);
+                }
+
+                Account.synchronizeAccountCounter(accounts);
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            out.println("Could not load saved accounts: " + e.getMessage());
+            transactionProcessor.stop();
+            return;
+        }
 
         out.println("\n===== Repository: Find Account =====");
 
-        Account foundAccount = accountRepository.findById("AC0001");
-        out.println(foundAccount);
+        if (!accounts.isEmpty()) {
+            Account foundAccount = accountRepository.findById(
+                    accounts.get(0).getAccountNumber());
+            out.println(foundAccount);
+        } else {
+            out.println("No accounts available.");
+        }
 
         out.println("\n===== Repository: All Accounts =====");
 
@@ -101,16 +158,7 @@ public class MiniBank {
         }
 
         Integer[] numbers = {10, 20, 30, 40, 50};
-
         out.println("\nAverage: " + Repository.average(numbers));
-
-        AccountStore accountStore = new AccountStore();
-        TransactionProcessor transactionProcessor = new TransactionProcessor();
-
-        for (Account account : accounts) {
-            accountStore.add(account);
-            transactionProcessor.addAccount(account);
-        }
 
         out.println("\n===== Accounts Sorted by Balance =====");
 
@@ -118,39 +166,39 @@ public class MiniBank {
             out.println(account);
         }
 
-        for (int i = 0; i < accounts.size(); i++) {
-            out.println(accounts.get(i));
-            out.println("Interest Rate: "
-                    + accounts.get(i).interestRate() + "%");
+        for (Account account : accounts) {
+            out.println(account);
+            out.println("Interest Rate: " + account.interestRate() + "%");
             out.println();
         }
 
-        Account selectedAccount = accounts.get(0);
+        if (!accounts.isEmpty()) {
+            Account selectedAccount = accounts.get(0);
 
-        if (selectedAccount instanceof SavingsAccount) {
-            out.println("This is a Savings Account");
-        }
-
-        WithdrawRule rule1 = new WithdrawRule() {
-            @Override
-            public boolean allow(Account account, long amount) {
-                return amount <= account.getBalance();
+            if (selectedAccount instanceof SavingsAccount) {
+                out.println("This is a Savings Account");
             }
-        };
 
-        WithdrawRule rule2 = (account, amount) ->
-                amount <= account.getBalance();
+            WithdrawRule rule1 = new WithdrawRule() {
+                @Override
+                public boolean allow(Account account, long amount) {
+                    return amount <= account.getBalance();
+                }
+            };
 
-        out.println("Anonymous Class Withdrawal: "
-                + rule1.allow(selectedAccount, 2000));
+            WithdrawRule rule2 = (account, amount) ->
+                    amount <= account.getBalance();
 
-        out.println("Lambda Withdrawal: "
-                + rule2.allow(selectedAccount, 2000));
+            out.println("Anonymous Class Withdrawal: "
+                    + rule1.allow(selectedAccount, 2000));
+
+            out.println("Lambda Withdrawal: "
+                    + rule2.allow(selectedAccount, 2000));
+        }
 
         out.println("\n===== Annotation Validation =====");
 
         Account testAccount = new SavingsAccount("Test User", -500, 100);
-
         String[] errors = AnnotationValidator.validate(testAccount);
 
         if (errors.length == 0) {
@@ -178,15 +226,22 @@ public class MiniBank {
             threads[i].start();
         }
 
+        boolean interrupted = false;
+
         for (int i = 0; i < threadCount; i++) {
             try {
                 threads[i].join();
             } catch (InterruptedException e) {
-                transactionProcessor.stop();
+                interrupted = true;
                 Thread.currentThread().interrupt();
-                out.println("Main thread interrupted.");
-                return;
+                break;
             }
+        }
+
+        if (interrupted) {
+            transactionProcessor.stop();
+            out.println("Main thread interrupted.");
+            return;
         }
 
         long expectedBalance = (long) threadCount * times * amount;
@@ -194,8 +249,10 @@ public class MiniBank {
         out.println("Expected balance: " + expectedBalance);
         out.println("Actual balance: " + sharedAccount.getBalance());
 
-        Scanner sc = new Scanner(System.in);
+        BankService bankService = new BankService(
+                accountRepository, accountStore);
 
+        Scanner sc = new Scanner(System.in);
         BankInfo bank = new BankInfo("MiniBank", "CHARUSAT Branch");
 
         out.println("================================");
@@ -207,8 +264,9 @@ public class MiniBank {
             out.println("2. Deposit");
             out.println("3. Withdraw");
             out.println("4. Transfer");
-            out.println("5. Save, Load and Generate Report");
-            out.println("6. Exit");
+            out.println("5. Statement");
+            out.println("6. Save, Load and Generate Report");
+            out.println("7. Exit");
             out.print("Enter your choice: ");
 
             int choice;
@@ -225,7 +283,9 @@ public class MiniBank {
                 case 2 -> MenuOption.DEPOSIT;
                 case 3 -> MenuOption.WITHDRAW;
                 case 4 -> MenuOption.TRANSFER;
-                case 5, 6 -> MenuOption.EXIT;
+                case 5 -> MenuOption.STATEMENT;
+                case 6 -> MenuOption.REPORT;
+                case 7 -> MenuOption.EXIT;
                 default -> null;
             };
 
@@ -235,14 +295,19 @@ public class MiniBank {
             }
 
             try {
-                switch (choice) {
-                    case 1 -> {
+                switch (option) {
+                    case OPEN_ACCOUNT -> {
                         out.println("1. Savings Account");
                         out.println("2. Current Account");
                         out.println("3. Fixed Deposit Account");
                         out.print("Choose account type: ");
 
                         int type = Integer.parseInt(sc.nextLine());
+
+                        if (type < 1 || type > 3) {
+                            out.println("Invalid account type.");
+                            continue;
+                        }
 
                         out.print("Enter owner name: ");
                         String name = sc.nextLine();
@@ -253,128 +318,142 @@ public class MiniBank {
                         Account account;
 
                         switch (type) {
-                            case 1 -> {
-                                out.print("Enter minimum balance: ");
-                                long minimum = Long.parseLong(sc.nextLine());
-                                account = new SavingsAccount(name, balance, minimum);
-                            }
+                            case 1 -> account = bankService.openAccount(
+                                    name, balance);
+
                             case 2 -> {
                                 out.print("Enter overdraft limit: ");
                                 long limit = Long.parseLong(sc.nextLine());
-                                account = new CurrentAccount(name, balance, limit);
+
+                                account = new CurrentAccount(
+                                        name, balance, limit);
+
+                                String[] validationErrors =
+                                        AnnotationValidator.validate(account);
+
+                                if (validationErrors.length > 0) {
+                                    throw new BankException(
+                                            String.join(", ", validationErrors));
+                                }
+
+                                registerAccount(
+                                        account, accounts, accountRepository,
+                                        accountStore, transactionProcessor);
+
+                                accountStore.addTransaction(
+                                        "Account opened: "
+                                                + account.getAccountNumber());
                             }
-                            case 3 -> account = new FixedDepositAccount(name, balance);
-                            default -> {
-                                out.println("Invalid account type.");
-                                continue;
+
+                            case 3 -> {
+                                account = new FixedDepositAccount(
+                                        name, balance);
+
+                                String[] validationErrors =
+                                        AnnotationValidator.validate(account);
+
+                                if (validationErrors.length > 0) {
+                                    throw new BankException(
+                                            String.join(", ", validationErrors));
+                                }
+
+                                registerAccount(
+                                        account, accounts, accountRepository,
+                                        accountStore, transactionProcessor);
+
+                                accountStore.addTransaction(
+                                        "Account opened: "
+                                                + account.getAccountNumber());
                             }
+
+                            default -> throw new BankException(
+                                    "Invalid account type.");
                         }
 
-                        accounts.add(account);
-                        accountStore.add(account);
-                        transactionProcessor.addAccount(account);
-                        accountRepository.save(account);
+                        if (type == 1) {
+                            registerAccount(
+                                    account, accounts, accountRepository,
+                                    accountStore, transactionProcessor);
+                        }
 
                         out.println("Account opened successfully.");
                         out.println(account);
                     }
 
-                    case 2 -> {
+                    case DEPOSIT -> {
                         out.print("Enter account number: ");
                         String number = sc.nextLine();
-
-                        Account account = accountStore.get(number);
-
-                        if (account == null) {
-                            throw new AccountNotFoundException(
-                                    "Account not found: " + number);
-                        }
 
                         out.print("Enter deposit amount: ");
                         long depositAmount = Long.parseLong(sc.nextLine());
 
-                        account.deposit(depositAmount);
+                        bankService.deposit(number, depositAmount);
+
+                        Account account = bankService.statement(number);
                         logTransaction("Deposit", account, depositAmount);
 
-                        accountStore.addTransaction(
-                                "Deposit: " + depositAmount
-                                        + " | Account: " + account.getAccountNumber());
-
                         out.println("Deposit successful.");
-                        out.println("Updated balance: " + account.getBalance());
+                        out.println("Updated balance: "
+                                + account.getBalance());
                     }
 
-                    case 3 -> {
+                    case WITHDRAW -> {
                         out.print("Enter account number: ");
                         String number = sc.nextLine();
-
-                        Account account = accountStore.get(number);
-
-                        if (account == null) {
-                            throw new AccountNotFoundException(
-                                    "Account not found: " + number);
-                        }
 
                         out.print("Enter withdrawal amount: ");
                         long withdrawalAmount = Long.parseLong(sc.nextLine());
 
-                        account.withdraw(withdrawalAmount);
+                        bankService.withdraw(number, withdrawalAmount);
+
+                        Account account = bankService.statement(number);
                         logTransaction("Withdrawal", account, withdrawalAmount);
 
-                        accountStore.addTransaction(
-                                "Withdrawal: " + withdrawalAmount
-                                        + " | Account: " + account.getAccountNumber());
-
                         out.println("Withdrawal successful.");
-                        out.println("Updated balance: " + account.getBalance());
+                        out.println("Updated balance: "
+                                + account.getBalance());
                     }
 
-                    case 4 -> {
+                    case TRANSFER -> {
                         out.print("Enter source account number: ");
                         String sourceNumber = sc.nextLine();
-
-                        Account source = accountStore.get(sourceNumber);
-
-                        if (source == null) {
-                            throw new AccountNotFoundException(
-                                    "Source account not found: " + sourceNumber);
-                        }
 
                         out.print("Enter destination account number: ");
                         String destinationNumber = sc.nextLine();
 
-                        Account destination = accountStore.get(destinationNumber);
-
-                        if (destination == null) {
-                            throw new AccountNotFoundException(
-                                    "Destination account not found: " + destinationNumber);
-                        }
-
                         out.print("Enter transfer amount: ");
                         long transferAmount = Long.parseLong(sc.nextLine());
 
-                        source.transfer(destination, transferAmount);
+                        bankService.transfer(
+                                sourceNumber, destinationNumber, transferAmount);
+
+                        Account source = bankService.statement(sourceNumber);
+                        Account destination =
+                                bankService.statement(destinationNumber);
 
                         logTransaction("Withdrawal", source, transferAmount);
                         logTransaction("Deposit", destination, transferAmount);
 
-                        accountStore.addTransaction(
-                                "Transfer withdrawal: " + transferAmount
-                                        + " | Account: " + source.getAccountNumber());
-
-                        accountStore.addTransaction(
-                                "Transfer deposit: " + transferAmount
-                                        + " | Account: " + destination.getAccountNumber());
-
                         out.println("Transfer successful.");
                         out.println("Source balance: " + source.getBalance());
-                        out.println("Destination balance: " + destination.getBalance());
+                        out.println("Destination balance: "
+                                + destination.getBalance());
                     }
 
-                    case 5 -> {
-                        Files.createDirectories(DATA_FOLDER);
-                        saveAccounts(accounts);
+                    case STATEMENT -> {
+                        out.print("Enter account number: ");
+                        String number = sc.nextLine();
 
+                        Account account = bankService.statement(number);
+                        out.println("\n===== Account Statement =====");
+                        out.println(account);
+                        out.println("Interest Rate: "
+                                + account.interestRate() + "%");
+                        out.println("Active: " + account.isActive());
+                    }
+
+                    case REPORT -> {
+                        saveAccounts(accounts);
                         out.println("Accounts saved successfully.");
 
                         Account[] loadedAccounts =
@@ -386,6 +465,12 @@ public class MiniBank {
                             out.println(account);
                         }
 
+                        out.println("\n===== All Accounts =====");
+
+                        for (Account account : bankService.listAccounts()) {
+                            out.println(account);
+                        }
+
                         out.println("\n===== Accounts Sorted by Balance =====");
 
                         for (Account account : accountStore.sortedByBalance()) {
@@ -394,18 +479,23 @@ public class MiniBank {
 
                         out.println("\n===== Transaction History =====");
 
-                        for (String transaction : accountStore.getTransactionHistory()) {
+                        for (String transaction :
+                                accountStore.getTransactionHistory()) {
                             out.println(transaction);
                         }
 
                         generateReport();
-                        out.println(Files.readString(REPORT_FILE));
+
+                        if (Files.exists(REPORT_FILE)) {
+                            out.println(Files.readString(REPORT_FILE));
+                        }
                     }
 
-                    case 6 -> {
+                    case EXIT -> {
                         saveAccounts(accounts);
                         out.println("Accounts saved successfully.");
                         out.println("Thank you for using MiniBank!");
+
                         transactionProcessor.stop();
                         sc.close();
                         return;

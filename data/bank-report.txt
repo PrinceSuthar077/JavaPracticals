@@ -1,0 +1,14 @@
+===== MiniBank Transaction Report =====
+
+File: transactions.log
+Deposit: 4500 | Account: AC0001 | Owner: Prince
+Withdrawal: 3800 | Account: AC0001 | Owner: Prince
+Withdrawal: 2000 | Account: AC0001 | Owner: Prince
+Deposit: 2000 | Account: AC0002 | Owner: Rahul
+Deposit: 400 | Account: AC0001 | Owner: Prince
+File Size: 249 bytes
+Last Modified: 2026-10-28T09:48:35.183567Z
+
+Total Deposits: 6900
+Total Withdrawals: 5800
+=======================================

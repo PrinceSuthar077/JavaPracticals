@@ -1,8 +1,9 @@
+
 package service;
 
+import exception.BankException;
 import model.Account;
 import model.SavingsAccount;
-import exception.BankException;
 
 public class TransactionTest {
 
@@ -16,7 +17,6 @@ public class TransactionTest {
             processor.submit(() -> {
                 try {
                     account.deposit(100);
-                    System.out.println(Thread.currentThread().getName() + " deposited 100");
                 } catch (BankException e) {
                     System.out.println(e.getMessage());
                 }
@@ -25,7 +25,6 @@ public class TransactionTest {
             processor.submit(() -> {
                 try {
                     account.withdraw(50);
-                    System.out.println(Thread.currentThread().getName() + " withdrew 50");
                 } catch (BankException e) {
                     System.out.println(e.getMessage());
                 }
@@ -34,6 +33,16 @@ public class TransactionTest {
 
         processor.stop();
 
-        System.out.println("Final balance: " + account.getBalance());
+        long expectedBalance = 10500;
+        long actualBalance = account.getBalance();
+
+        System.out.println("Expected balance: " + expectedBalance);
+        System.out.println("Actual balance: " + actualBalance);
+
+        if (actualBalance == expectedBalance) {
+            System.out.println("Multithreading test passed.");
+        } else {
+            System.out.println("Multithreading test failed.");
+        }
     }
 }

@@ -24,9 +24,24 @@ public abstract class Account implements Transactable, InterestBearing, Serializ
 
     private static long accountCounter = 0;
 
-    private static String generateAccountNumber() {
+    private static synchronized String generateAccountNumber() {
         accountCounter++;
         return String.format("AC%04d", accountCounter);
+    }
+
+    private static synchronized void updateAccountCounter(String accountNumber) {
+        if (accountNumber != null && accountNumber.matches("AC\\d+")) {
+            try {
+                long number = Long.parseLong(accountNumber.substring(2));
+
+                if (number > accountCounter) {
+                    accountCounter = number;
+                }
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(
+                        "Invalid account number: " + accountNumber, e);
+            }
+        }
     }
 
     public Account(String ownerName, long openingBalance) {
@@ -38,6 +53,18 @@ public abstract class Account implements Transactable, InterestBearing, Serializ
 
     public Account(String ownerName) {
         this(ownerName, 0);
+    }
+
+    public static void synchronizeAccountCounter(Iterable<Account> accounts) {
+        if (accounts == null) {
+            return;
+        }
+
+        for (Account account : accounts) {
+            if (account != null) {
+                updateAccountCounter(account.getAccountNumber());
+            }
+        }
     }
 
     @Override
@@ -142,11 +169,13 @@ public abstract class Account implements Transactable, InterestBearing, Serializ
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
+        }
 
-        if (!(o instanceof Account))
+        if (!(o instanceof Account)) {
             return false;
+        }
 
         Account account = (Account) o;
         return accountNumber.equals(account.accountNumber);

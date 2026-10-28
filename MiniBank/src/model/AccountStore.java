@@ -2,14 +2,22 @@ package model;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class AccountStore {
 
-    private final HashMap<String, Account> accounts = new HashMap<>();
-    private final ArrayList<String> transactionHistory = new ArrayList<>();
+    private final ConcurrentHashMap<String, Account> accounts =
+            new ConcurrentHashMap<>();
+
+    private final CopyOnWriteArrayList<String> transactionHistory =
+            new CopyOnWriteArrayList<>();
 
     public void add(Account account) {
+        if (account == null) {
+            throw new IllegalArgumentException("Account cannot be null.");
+        }
+
         accounts.put(account.getAccountNumber(), account);
     }
 
@@ -26,13 +34,19 @@ public class AccountStore {
     }
 
     public void addTransaction(String transaction) {
+        if (transaction == null) {
+            throw new IllegalArgumentException(
+                    "Transaction cannot be null.");
+        }
+
         transactionHistory.add(transaction);
     }
 
     public ArrayList<Account> sortedByBalance() {
         ArrayList<Account> sortedAccounts = getAll();
 
-        sortedAccounts.sort(Comparator.comparingLong(Account::getBalance));
+        sortedAccounts.sort(
+                Comparator.comparingLong(Account::getBalance));
 
         return sortedAccounts;
     }

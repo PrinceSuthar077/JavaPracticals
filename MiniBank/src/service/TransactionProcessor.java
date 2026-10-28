@@ -1,8 +1,12 @@
 package service;
 
+import exception.BankException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import model.Account;
 
@@ -28,6 +32,28 @@ public class TransactionProcessor {
 
     public void submit(Runnable task) {
         executor.execute(task);
+    }
+
+    public void processDeposits(
+            BankService bankService,
+            String accountNumber,
+            List<Long> amounts) throws Exception {
+
+        List<Future<?>> tasks = new ArrayList<>();
+
+        for (long amount : amounts) {
+            tasks.add(executor.submit(() -> {
+                try {
+                    bankService.deposit(accountNumber, amount);
+                } catch (BankException e) {
+                    throw new RuntimeException(e);
+                }
+            }));
+        }
+
+        for (Future<?> task : tasks) {
+            task.get();
+        }
     }
 
     public void stop() {
