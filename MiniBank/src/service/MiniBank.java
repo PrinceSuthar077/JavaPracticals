@@ -1,9 +1,11 @@
+
 package service;
 
 import java.util.ArrayList;
 import java.util.Scanner;
 
 import model.Account;
+import model.AccountWorker;
 import model.CurrentAccount;
 import model.FixedDepositAccount;
 import model.SavingsAccount;
@@ -89,6 +91,38 @@ public class MiniBank {
                 out.println(error);
             }
         }
+
+        out.println("\n===== Multithreading Test =====");
+
+        Account sharedAccount = new SavingsAccount("Thread Test", 0, 0);
+        int threadCount = 10;
+        int times = 10000;
+        long amount = 1;
+
+        Thread[] threads = new Thread[threadCount];
+
+        for (int i = 0; i < threadCount; i++) {
+            AccountWorker worker = new AccountWorker(
+                    sharedAccount, times, amount);
+
+            threads[i] = new Thread(worker, "Worker-" + (i + 1));
+            threads[i].start();
+        }
+
+        for (int i = 0; i < threadCount; i++) {
+            try {
+                threads[i].join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                out.println("Main thread interrupted.");
+                return;
+            }
+        }
+
+        long expectedBalance = (long) threadCount * times * amount;
+
+        out.println("Expected balance: " + expectedBalance);
+        out.println("Actual balance: " + sharedAccount.getBalance());
 
         Scanner sc = new Scanner(System.in);
 
@@ -180,9 +214,9 @@ public class MiniBank {
                         Account account = findAccount(accounts, number);
 
                         out.print("Enter deposit amount: ");
-                        long amount = Long.parseLong(sc.nextLine());
+                        long depositAmount = Long.parseLong(sc.nextLine());
 
-                        account.deposit(amount);
+                        account.deposit(depositAmount);
 
                         out.println("Deposit successful.");
                         out.println("Updated balance: "
@@ -196,9 +230,9 @@ public class MiniBank {
                         Account account = findAccount(accounts, number);
 
                         out.print("Enter withdrawal amount: ");
-                        long amount = Long.parseLong(sc.nextLine());
+                        long withdrawalAmount = Long.parseLong(sc.nextLine());
 
-                        account.withdraw(amount);
+                        account.withdraw(withdrawalAmount);
 
                         out.println("Withdrawal successful.");
                         out.println("Updated balance: "
@@ -219,9 +253,9 @@ public class MiniBank {
                                 accounts, destinationNumber);
 
                         out.print("Enter transfer amount: ");
-                        long amount = Long.parseLong(sc.nextLine());
+                        long transferAmount = Long.parseLong(sc.nextLine());
 
-                        source.transfer(destination, amount);
+                        source.transfer(destination, transferAmount);
 
                         out.println("Transfer successful.");
                         out.println("Source balance: "
